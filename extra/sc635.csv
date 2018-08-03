@@ -1,0 +1,9 @@
+# Name,   Type, SubType, Offset,   Size, Flags
+# Un blocco = 4KiB 
+nvs,      data, nvs,   0x9000,   16K
+otadata,  data, ota,   ,  	  8K
+phy_init, data, phy,   0xF000,    4K
+ota1,     app,  ota_0, 0x10000,   1M
+ota2,     app,  ota_1, ,          1M
+# Parte privata
+prod,     data, nvs,   ,          8K

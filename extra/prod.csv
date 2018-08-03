@@ -1,0 +1,4 @@
+key,type,encoding,value
+prod,namespace,,
+prodotto,data,string,123456789012
+scheda,data,string,XYZpy000000
