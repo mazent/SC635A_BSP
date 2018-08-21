@@ -5,6 +5,8 @@
 #define LED_SEL		GPIO_SEL_4
 #define LED    		GPIO_NUM_4
 
+static bool rosso ;
+
 static const gpio_config_t cfg = {
 	.pin_bit_mask = LED_SEL,
 	.mode = GPIO_MODE_OUTPUT,
@@ -16,6 +18,8 @@ static const gpio_config_t cfg = {
 
 bool LED_beg(void)
 {
+	rosso = false ;
+
 	return ESP_OK == gpio_config(&cfg) ;
 }
 
@@ -27,9 +31,13 @@ void LED_end(void)
 void LED_rosso(bool si)
 {
 	gpio_set_level(LED, si ? 1 : 0) ;
+	rosso = si ;
 }
 
 void LED_rosso_alt(void)
 {
-	gpio_set_level(LED, gpio_get_level(LED) ? 1 : 0) ;
+	if (rosso)
+		LED_rosso(false) ;
+	else
+		LED_rosso(true) ;
 }

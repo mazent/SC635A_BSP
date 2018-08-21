@@ -10,20 +10,23 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "freertos/timers.h"
 
 static TickType_t ms_in_tick(uint32_t millisec)
 {
-	TickType_t ticks = 1 ;
+	TickType_t ticks ;
 
 	assert(portTICK_PERIOD_MS) ;
 
 	if (millisec == osWaitForever)
 	    ticks = portMAX_DELAY ;
 	else if (0 == millisec)
-		return 0 ;
+		ticks = 0 ;
 	else {
 		// Rounding
-	    ticks = 1 + (millisec - 1) * configTICK_RATE_HZ / 1000 ;
+	    ticks = 1 + (millisec - 1) / portTICK_PERIOD_MS ;
+	    if (0 == ticks)
+	    	ticks = 1 ;
 	}
 
 	return ticks ;
@@ -195,6 +198,7 @@ osStatus osDelay(uint32_t millisec)
 //  ==== Timer Management Functions ====
 
 typedef struct os_timer_cb {
+	uint32_t milli ;
 	TimerHandle_t h ;
 	os_ptimer cb ;
 	void * arg ;
@@ -233,11 +237,12 @@ osTimerId osTimerCreate(const osTimerDef_t *timer_def, os_timer_type type, void 
 		if (NULL == tid)
 			break ;
 
+		tid->milli = 100 ;
 		tid->cb = timer_def->ptimer ;
 		tid->arg = argument ;
 		tid->h = xTimerCreate(
 				timer_def->nome,
-                1,
+                ms_in_tick(tid->milli),
                 (type == osTimerPeriodic) ? pdTRUE : pdFALSE,
                 tid,
                 timer_cb) ;
@@ -263,10 +268,19 @@ osStatus osTimerStart(osTimerId timer_id, uint32_t millisec)
 
 	if (xPortInIsrContext())
 		return osErrorISR ;
-	else if (pdPASS == xTimerStart(timer_id->h, ms_in_tick(millisec)))
-		return osOK ;
-	else
-		return osErrorParameter ;
+	else {
+		if (millisec != timer_id->milli) {
+			if (pdPASS == xTimerChangePeriod(timer_id->h, ms_in_tick(millisec), 0))
+				timer_id->milli = millisec ;
+			else
+				return osErrorOS ;
+		}
+
+		if (pdPASS == xTimerStart(timer_id->h, 0))
+			return osOK ;
+		else
+			return osErrorParameter ;
+	}
 }
 
 osStatus osTimerStop(osTimerId timer_id)
