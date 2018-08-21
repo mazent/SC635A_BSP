@@ -23,7 +23,7 @@ static TickType_t ms_in_tick(uint32_t millisec)
 		return 0 ;
 	else {
 		// Rounding
-	    ticks = 1 + (millisec - 1) / portTICK_PERIOD_MS ;
+	    ticks = 1 + (millisec - 1) * configTICK_RATE_HZ / 1000 ;
 	}
 
 	return ticks ;
@@ -73,14 +73,22 @@ static QueueHandle_t mzQueueCreate(const UBaseType_t uxQueueLength, const UBaseT
 ///// \note MUST REMAIN UNCHANGED: \b osKernelRunning shall be consistent in every CMSIS-RTOS.
 ///// \return 0 RTOS is not started, 1 RTOS is started.
 //int32_t osKernelRunning(void);
-//
-//#if (defined (osFeature_SysTick)  &&  (osFeature_SysTick != 0))     // System Timer available
-//
-///// Get the RTOS kernel system timer counter
-///// \note MUST REMAIN UNCHANGED: \b osKernelSysTick shall be consistent in every CMSIS-RTOS.
-///// \return RTOS kernel system timer as 32-bit value
-//uint32_t osKernelSysTick (void);
-//
+
+#if (defined (osFeature_SysTick)  &&  (osFeature_SysTick != 0))     // System Timer available
+
+uint32_t osKernelSysTick(void)
+{
+    if ( xPortInIsrContext() )
+        return xTaskGetTickCountFromISR() ;
+    else
+        return xTaskGetTickCount() ;
+}
+
+uint32_t os_milli_from_KernelSysTick(uint32_t tick)
+{
+	return portTICK_PERIOD_MS * tick ;
+}
+
 ///// The RTOS kernel system timer frequency in Hz
 ///// \note Reflects the system timer setting and is typically defined in a configuration file.
 //#define osKernelSysTickFrequency 100000000
@@ -90,7 +98,7 @@ static QueueHandle_t mzQueueCreate(const UBaseType_t uxQueueLength, const UBaseT
 ///// \return time value normalized to the \ref osKernelSysTickFrequency
 //#define osKernelSysTickMicroSec(microsec) (((uint64_t)microsec * (osKernelSysTickFrequency)) / 1000000)
 //
-//#endif    // System Timer available
+#endif    // System Timer available
 
 //  ==== Estensioni ====
 
@@ -186,32 +194,107 @@ osStatus osDelay(uint32_t millisec)
 
 //  ==== Timer Management Functions ====
 
-///// Create a timer.
-///// \param[in]     timer_def     timer object referenced with \ref osTimer.
-///// \param[in]     type          osTimerOnce for one-shot or osTimerPeriodic for periodic behavior.
-///// \param[in]     argument      argument to the timer call back function.
-///// \return timer ID for reference by other functions or NULL in case of error.
-///// \note MUST REMAIN UNCHANGED: \b osTimerCreate shall be consistent in every CMSIS-RTOS.
-//osTimerId osTimerCreate (const osTimerDef_t *timer_def, os_timer_type type, void *argument);
-//
-///// Start or restart a timer.
-///// \param[in]     timer_id      timer ID obtained by \ref osTimerCreate.
-///// \param[in]     millisec      \ref CMSIS_RTOS_TimeOutValue "time delay" value of the timer.
-///// \return status code that indicates the execution status of the function.
-///// \note MUST REMAIN UNCHANGED: \b osTimerStart shall be consistent in every CMSIS-RTOS.
-//osStatus osTimerStart (osTimerId timer_id, uint32_t millisec);
-//
-///// Stop the timer.
-///// \param[in]     timer_id      timer ID obtained by \ref osTimerCreate.
-///// \return status code that indicates the execution status of the function.
-///// \note MUST REMAIN UNCHANGED: \b osTimerStop shall be consistent in every CMSIS-RTOS.
-//osStatus osTimerStop (osTimerId timer_id);
-//
-///// Delete a timer that was created by \ref osTimerCreate.
-///// \param[in]     timer_id      timer ID obtained by \ref osTimerCreate.
-///// \return status code that indicates the execution status of the function.
-///// \note MUST REMAIN UNCHANGED: \b osTimerDelete shall be consistent in every CMSIS-RTOS.
-//osStatus osTimerDelete (osTimerId timer_id);
+typedef struct os_timer_cb {
+	TimerHandle_t h ;
+	os_ptimer cb ;
+	void * arg ;
+} os_timer_id ;
+
+
+static void timer_cb(TimerHandle_t xTimer)
+{
+	osTimerId pT = pvTimerGetTimerID(xTimer) ;
+
+	assert(xTimer == pT->h) ;
+
+	pT->cb(pT->arg) ;
+}
+
+osTimerId osTimerCreate(const osTimerDef_t *timer_def, os_timer_type type, void *argument)
+{
+	os_timer_id * tid = NULL ;
+	bool esito = false ;
+
+	assert( !xPortInIsrContext() ) ;
+	assert( timer_def ) ;
+	assert( timer_def->ptimer ) ;
+
+	do {
+		if (xPortInIsrContext())
+			break ;
+
+		if (NULL == timer_def)
+			break ;
+
+		if (NULL == timer_def->ptimer)
+			break ;
+
+		tid = pvPortMalloc(sizeof(os_timer_id)) ;
+		if (NULL == tid)
+			break ;
+
+		tid->cb = timer_def->ptimer ;
+		tid->arg = argument ;
+		tid->h = xTimerCreate(
+				timer_def->nome,
+                1,
+                (type == osTimerPeriodic) ? pdTRUE : pdFALSE,
+                tid,
+                timer_cb) ;
+		if (NULL == tid->h)
+			break ;
+
+		esito = true ;
+	} while (false) ;
+
+	if (!esito) {
+		if (tid) {
+			vPortFree(tid) ;
+			tid = NULL ;
+		}
+	}
+
+	return tid ;
+}
+
+osStatus osTimerStart(osTimerId timer_id, uint32_t millisec)
+{
+	assert( !xPortInIsrContext() ) ;
+
+	if (xPortInIsrContext())
+		return osErrorISR ;
+	else if (pdPASS == xTimerStart(timer_id->h, ms_in_tick(millisec)))
+		return osOK ;
+	else
+		return osErrorParameter ;
+}
+
+osStatus osTimerStop(osTimerId timer_id)
+{
+	assert( !xPortInIsrContext() ) ;
+
+	if (xPortInIsrContext())
+		return osErrorISR ;
+	else if (pdPASS == xTimerStop(timer_id->h, 0) )
+		return osOK ;
+	else
+		return osErrorParameter ;
+}
+
+osStatus osTimerDelete(osTimerId timer_id)
+{
+	assert( !xPortInIsrContext() ) ;
+
+	if (xPortInIsrContext())
+		return osErrorISR ;
+	else if (pdPASS == xTimerDelete(timer_id->h, 0) ) {
+		vPortFree(timer_id) ;
+
+		return osOK ;
+	}
+	else
+		return osErrorParameter ;
+}
 
 
 //  ==== Signal Management ====

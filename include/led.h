@@ -7,5 +7,6 @@ bool LED_beg(void) ;
 void LED_end(void) ;
 
 void LED_rosso(bool) ;
+void LED_rosso_alt(void) ;
 
 #endif

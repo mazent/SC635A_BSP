@@ -177,6 +177,7 @@ typedef struct os_thread_def {
 /// Timer Definition structure contains timer parameters.
 /// \note CAN BE CHANGED: \b os_timer_def is implementation specific in every CMSIS-RTOS.
 typedef struct os_timer_def {
+	const char * nome ;
     os_ptimer ptimer ;                 ///< start address of a timer function
 } osTimerDef_t ;
 
@@ -260,6 +261,8 @@ int32_t osKernelRunning(void) ;
 /// \note MUST REMAIN UNCHANGED: \b osKernelSysTick shall be consistent in every CMSIS-RTOS.
 /// \return RTOS kernel system timer as 32-bit value
 uint32_t osKernelSysTick (void) ;
+
+uint32_t os_milli_from_KernelSysTick(uint32_t) ;
 
 /// The RTOS kernel system timer frequency in Hz
 /// \note Reflects the system timer setting and is typically defined in a configuration file.
@@ -367,7 +370,7 @@ osEvent osWait (uint32_t millisec) ;
 		extern const osTimerDef_t os_timer_def_ ## name
 #else                            // define the object
 #	define osTimerDef(name, function)  \
-		const osTimerDef_t os_timer_def_ ## name =  { (function) }
+		const osTimerDef_t os_timer_def_ ## name =  { #name, (function) }
 #endif
 
 /// Access a Timer definition.

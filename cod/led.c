@@ -28,3 +28,8 @@ void LED_rosso(bool si)
 {
 	gpio_set_level(LED, si ? 1 : 0) ;
 }
+
+void LED_rosso_alt(void)
+{
+	gpio_set_level(LED, gpio_get_level(LED) ? 1 : 0) ;
+}

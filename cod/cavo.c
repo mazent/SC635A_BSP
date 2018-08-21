@@ -1,8 +1,7 @@
 #include "cavo.h"
 
 /*
- * Presenza del cavo ethernet nel
- * connettore RJ45
+ * Presenza del cavo ethernet nel connettore RJ45
  */
 
 #include "driver/gpio.h"
