@@ -663,7 +663,6 @@ osMailQId osMailCreate(const osMailQDef_t * queue_def, osThreadId thread_id)
 	if (NULL == mq)
 		goto err4 ;
 
-	*(queue_def->pId) = mq ;
 	*mq = tmp ;
 	goto err1 ;
 

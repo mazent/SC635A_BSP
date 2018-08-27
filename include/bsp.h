@@ -28,6 +28,9 @@
 
 #define DIM_VECT(a)         sizeof(a) / sizeof(a[0])
 
+#define STRINGA(x)		# x
+
+
 // Debug
 // ==========================================
 
