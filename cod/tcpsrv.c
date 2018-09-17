@@ -22,15 +22,6 @@ struct TCP_SRV {
 
 static const char * TAG = "tcpsrv";
 
-//static osThreadId tid = NULL ;
-
-//static TCPSRV_CFG cfg = {
-//	.conn = NULL,
-//	.msg = NULL,
-//	.scon = NULL
-//} ;
-
-//static int cln = -1 ;
 
 #define CMD_ESCI		((uint32_t)	0x5C72EC95)
 
@@ -84,15 +75,15 @@ static void tcpThd(void * v)
 	int srvE, srvI ;
 	fd_set active_fd_set, read_fd_set;
 	int i;
-	TCPSRV_MSG * msg = (TCPSRV_MSG *) osPoolAlloc(cfg.mp) ;
-	TCP_SRV * pS = v ;
+	TCP_SRV * pSrv = v ;
+	TCPSRV_MSG * msg = (TCPSRV_MSG *) osPoolAlloc(pSrv->cfg.mp) ;
 
 	do {
 		FD_ZERO(&active_fd_set) ;
 
 		struct sockaddr_in name = { 0 } ;
 		name.sin_family = AF_INET;
-		name.sin_port = htons(pS->cfg.porta) ;
+		name.sin_port = htons(pSrv->cfg.porta) ;
 
 		// socket interno udp
 		srvI = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
@@ -165,7 +156,7 @@ static void tcpThd(void * v)
 
 							FD_SET(pSrv->cln, &active_fd_set);
 
-							pS->cfg.conn(ip) ;
+							pSrv->cfg.conn(ip) ;
 						}
 					}
 					else {
@@ -173,14 +164,14 @@ static void tcpThd(void * v)
 						do {
 							if (NULL == msg) {
 								// Riprovo
-								msg = (TCPSRV_MSG *) osPoolAlloc(pS->cfg.mp) ;
+								msg = (TCPSRV_MSG *) osPoolAlloc(pSrv->cfg.mp) ;
 
 								ESP_LOGE(TAG, "buffer esauriti") ;
 								if (NULL == msg)
 									break ;
 							}
 
-							msg->id = pS->cfg.id ;
+							msg->id = pSrv->cfg.id ;
 
 							int nbytes = read(i, msg->mem, TCPSRV_MSG_DIM) ;
 							if (nbytes <= 0) {
@@ -188,17 +179,17 @@ static void tcpThd(void * v)
 								close(i);
 								FD_CLR(i, &active_fd_set);
 
-								pS->cln = -1 ;
+								pSrv->cln = -1 ;
 
-								pS->cfg.scon() ;
+								pSrv->cfg.scon() ;
 							}
 							else {
 								/* Data read. */
 								msg->dim = nbytes ;
 
-								pS->cfg.msg(msg) ;
+								pSrv->cfg.msg(msg) ;
 
-								msg = (TCPSRV_MSG *) osPoolAlloc(pS->cfg.mp) ;
+								msg = (TCPSRV_MSG *) osPoolAlloc(pSrv->cfg.mp) ;
 							}
 
 						} while (false) ;
