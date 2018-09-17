@@ -200,7 +200,7 @@ static void tcpThd(void * v)
 
 	} while (false) ;
 
-	pS->tid = NULL ;
+	pSrv->tid = NULL ;
 	CHECK_IT( osOK == osThreadTerminate(NULL) ) ;
 }
 
